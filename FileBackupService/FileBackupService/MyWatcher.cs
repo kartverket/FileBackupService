@@ -83,7 +83,7 @@ namespace FileBackupService
                 //if file is locked, retry max 20 times
                 while (locked && retries < 20)
                 {
-                    Thread.Sleep(500);
+                    Thread.Sleep(1000);
                     locked = IsFileLocked(new FileInfo(e.FullPath));
                     retries += 1;
                 }
