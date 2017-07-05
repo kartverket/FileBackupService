@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Configuration;
 using System.Diagnostics;
+using System.Text;
 
 namespace FileBackupService
 {
@@ -92,6 +89,8 @@ namespace FileBackupService
                 try
                 {
                     File.Copy(e.FullPath, DestinationDirectory + "\\" + Path.GetFileName(e.FullPath), true);
+                //Write copy operation to eventlog
+                WriteOperationToEventLog(e.FullPath, DestinationDirectory);
 
                 }
                 catch (Exception ex)
@@ -118,6 +117,29 @@ namespace FileBackupService
                 eventLog.Source = "FileBackupService";
              //   eventLog.WriteEntry(_s, EventLogEntryType.Warning, 1001);
                 eventLog.WriteEntry(_s, EventLogEntryType.Error, 1002);
+
+            }
+        }
+
+        /// <summary>
+        /// Write given string to eventlog Application, Level Information.
+        /// </summary>
+        /// <param name="_s"></param>
+        private void WriteOperationToEventLog(string _filePath, string _destination)
+        {
+            using (EventLog eventLog = new EventLog("Application"))
+            {
+                eventLog.Source = "FileBackupService";
+               
+                //create string that is written to eventlog
+                var sb = new StringBuilder();
+                sb.Append(_filePath);
+                sb.AppendLine();
+                sb.Append("is successfully copied to");
+                sb.AppendLine();
+                sb.Append(_destination);
+
+                eventLog.WriteEntry(sb.ToString(), EventLogEntryType.Information, 1000);
 
             }
         }
