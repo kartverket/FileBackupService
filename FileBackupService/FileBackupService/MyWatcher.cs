@@ -4,12 +4,14 @@ using System.Threading;
 using System.Configuration;
 using System.Diagnostics;
 using System.Text;
+using System.Collections.Generic;
 
 namespace FileBackupService
 {
     public class MyWatcher
     {
-        private FileSystemWatcher reginaWatcher, borettWatcher;
+       // List of watchers, there will be one watcher for each filefilter entry;
+        private List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
 
         #region AppConfigParameters
         /// <summary>
@@ -21,28 +23,45 @@ namespace FileBackupService
         /// </summary>
         private string DestinationDirectory = ConfigurationManager.AppSettings["DestinationDirectory"];
         /// <summary>
-        /// Filter for files to be backed up
+        /// Filters for files to be backed up
         /// </summary>
-        private string ReginaFilter = ConfigurationManager.AppSettings["ReginaFilter"];
+        private string[] FileFilter = ConfigurationManager.AppSettings["FileFilter"].Split(',');
         /// <summary>
-        /// Filter for files to be backed up
+        /// Name on Source in Windows Eventlog
         /// </summary>
-        private string BorettFilter = ConfigurationManager.AppSettings["BorettFilter"];
+        private string EventLogSource = ConfigurationManager.AppSettings["EventLogSource"];
         #endregion AppConfigParameters
 
         public MyWatcher()
         {
-            this.reginaWatcher = new FileSystemWatcher();
-            this.borettWatcher = new FileSystemWatcher();
-        }
-        public MyWatcher(string _sourceDirectory, string _destinationDirectory)
-        {
+            foreach (var item in FileFilter)
+            {
+                //creates a new watcher for each filefilter, as long as filter is not only whitespaces
+                if (item.Trim().Length>0)
+                {
+                    try
+                    {
+                        var w = new FileSystemWatcher();
+                        w.Path = SourceDirectory;
+                        w.NotifyFilter = NotifyFilters.FileName |
+                                    NotifyFilters.LastAccess |
+                                     NotifyFilters.LastWrite |
+                                     NotifyFilters.DirectoryName;
+                        w.Filter = item.Trim();
+                        watchers.Add(w);
+                    }
+                    catch (Exception e)
+                    {
+                        var sb = new StringBuilder();
+                        sb.Append("Error creating watcher for filefilter: " + item.Trim() +".");
+                        sb.AppendLine();
+                        sb.Append(e.Message);
+                        WriteErrorToEventLog(sb.ToString());
+                       
+                    }
+                }
 
-            this.reginaWatcher = new FileSystemWatcher();
-            this.borettWatcher = new FileSystemWatcher();
-
-            this.SourceDirectory = _sourceDirectory;
-            this.DestinationDirectory = _destinationDirectory;
+            }
         }
 
         /// <summary>
@@ -51,25 +70,18 @@ namespace FileBackupService
         /// </summary>
         public void Watch()
         {
-            reginaWatcher.Path = SourceDirectory;
-            reginaWatcher.NotifyFilter = NotifyFilters.FileName |
-                        NotifyFilters.LastAccess |
-                         NotifyFilters.LastWrite |
-                         NotifyFilters.DirectoryName;
-            reginaWatcher.Filter = ReginaFilter; 
-            reginaWatcher.Created += new FileSystemEventHandler(OnCreated);
-            // reginaWatcher.Changed += new FileSystemEventHandler(OnCreated);
-            reginaWatcher.EnableRaisingEvents = true;
+            foreach (var item in watchers)
+            {
+                item.Created += new FileSystemEventHandler(OnCreated);
+                item.EnableRaisingEvents = true;
+                var sb = new StringBuilder();
+                sb.AppendFormat("Filter {0} is appended to filewathcer",item.Filter);
+                sb.AppendLine();
+                sb.Append("Files that match this filter will be copied to destination folder");
+                WriteInfoToEventLog(sb.ToString());
 
-            borettWatcher.Path = SourceDirectory;
-            borettWatcher.NotifyFilter = NotifyFilters.FileName |
-                        NotifyFilters.LastAccess |
-                         NotifyFilters.LastWrite |
-                         NotifyFilters.DirectoryName;
-            borettWatcher.Filter = BorettFilter; 
-            borettWatcher.Created += new FileSystemEventHandler(OnCreated);
+            }
 
-            borettWatcher.EnableRaisingEvents = true;
         }
 
         private void OnCreated(object sender, FileSystemEventArgs e)
@@ -114,7 +126,7 @@ namespace FileBackupService
         {
             using (EventLog eventLog = new EventLog("Application"))
             {
-                eventLog.Source = "FileBackupService";
+                eventLog.Source = EventLogSource;
              //   eventLog.WriteEntry(_s, EventLogEntryType.Warning, 1001);
                 eventLog.WriteEntry(_s, EventLogEntryType.Error, 1002);
 
@@ -124,12 +136,28 @@ namespace FileBackupService
         /// <summary>
         /// Write given string to eventlog Application, Level Information.
         /// </summary>
-        /// <param name="_s"></param>
+        /// <param name="_info"></param>
+        private void WriteInfoToEventLog(string _info)
+        {
+            using (EventLog eventLog = new EventLog("Application"))
+            {
+                eventLog.Source = EventLogSource;
+
+                eventLog.WriteEntry(_info, EventLogEntryType.Information, 1000);
+
+            }
+        }
+
+        /// <summary>
+        /// file that is copied: Writes filepath and destination to eventlog Application, Level Information.
+        /// </summary>
+        /// <param name="_filePath"></param>
+        /// <param name="_destination"></param>
         private void WriteOperationToEventLog(string _filePath, string _destination)
         {
             using (EventLog eventLog = new EventLog("Application"))
             {
-                eventLog.Source = "FileBackupService";
+                eventLog.Source = EventLogSource;
                
                 //create string that is written to eventlog
                 var sb = new StringBuilder();
