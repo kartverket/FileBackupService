@@ -17,6 +17,7 @@ namespace FileBackupService
 
         protected override void OnStop()
         {
+            this.Dispose(true);
         }
     }
 }

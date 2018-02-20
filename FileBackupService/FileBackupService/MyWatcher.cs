@@ -5,6 +5,7 @@ using System.Configuration;
 using System.Diagnostics;
 using System.Text;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace FileBackupService
 {
@@ -47,6 +48,8 @@ namespace FileBackupService
                                     NotifyFilters.LastAccess |
                                      NotifyFilters.LastWrite |
                                      NotifyFilters.DirectoryName;
+                        w.InternalBufferSize = 32768;
+                        w.IncludeSubdirectories = false;
                         w.Filter = item.Trim();
                         watchers.Add(w);
                     }
@@ -84,7 +87,7 @@ namespace FileBackupService
 
         }
 
-        private void OnCreated(object sender, FileSystemEventArgs e)
+        private async void OnCreated(object sender, FileSystemEventArgs e)
         {
                 //Check if file is locked
                 var locked = IsFileLocked(new FileInfo(e.FullPath));
@@ -92,7 +95,8 @@ namespace FileBackupService
                 //if file is locked, retry max 20 times
                 while (locked && retries < 20)
                 {
-                    Thread.Sleep(1000);
+                //Thread.Sleep(1000);
+                await Task.Delay(1000);
                     locked = IsFileLocked(new FileInfo(e.FullPath));
                     retries += 1;
                 }
